@@ -12,14 +12,14 @@ export default function Register() {
 
   const handleRegister = () => {
     if (!phone || !password || !confirmPassword) {
-      alert("กรุณากรอกข้อมูลให้ครบครับฟลุ๊ค!");
+      alert("กรุณากรอกข้อมูลให้ครบ!");
       return;
     }
     if (password !== confirmPassword) {
-      alert("รหัสผ่านไม่ตรงกันครับ!");
+      alert("รหัสผ่านไม่ตรงกัน");
       return;
     }
-    alert("ลงทะเบียนสำเร็จแล้วครับ!");
+    alert("ลงทะเบียนสำเร็จ");
   };
 
   return (

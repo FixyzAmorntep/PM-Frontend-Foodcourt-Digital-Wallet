@@ -38,7 +38,7 @@ export default function QRTopup() {
   // 2. ฟังก์ชันยืนยันการเติมเงินที่เพิ่มการบันทึกประวัติ
   const handleConfirm = () => {
     if (amount <= 0 || !userPhone) {
-      alert("กรุณาระบุจำนวนเงินครับฟลุ๊ค");
+      alert("กรุณาระบุจำนวนเงิน");
       return;
     }
 
