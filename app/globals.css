@@ -1,0 +1,12 @@
+/* src/app/globals.css */
+@import "tailwindcss";
+
+@theme {
+  /* ถ้าฟลุ๊คใช้ Tailwind v4 (ที่มีการใช้ @import "tailwindcss") 
+     ต้องประกาศ font ภายใน @theme แบบนี้ครับ */
+  --font-sans: var(--font-lexend), ui-sans-serif, system-ui;
+}
+
+body {
+  font-family: var(--font-lexend), sans-serif !important;
+}
