@@ -22,11 +22,8 @@
 1. **Customer Role**
 
    ```bash
-   phone: "0822222222"
-   password: "password123"
-
-   phone: "0833333333"
-   password: "password123"
+   phone: "0999999999"
+   password: "password"
    ```
 
 2. **VENDOR Role**
