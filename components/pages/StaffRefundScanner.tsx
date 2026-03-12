@@ -1,0 +1,79 @@
+/* src/components/pages/ScanPay.tsx */
+'use client';
+
+import { ChevronLeft, HelpCircle, Flashlight, QrCode, Image as ImageIcon } from 'lucide-react';
+import Link from 'next/link';
+
+export default function ScanPay() {
+  return (
+    <div className="flex-1 flex flex-col bg-[#121212] relative overflow-hidden">
+      
+      {/* 1. Top Navigation Bar */}
+      <div className="flex justify-between items-center px-6 py-6 sticky top-0 z-30 bg-gradient-to-b from-black/50 to-transparent">
+        <Link href="/staffdashboard">
+          <div className="w-10 h-10 bg-white/10 backdrop-blur-lg rounded-full flex items-center justify-center text-white active:scale-90 transition-all border border-white/10">
+            <ChevronLeft size={24} />
+          </div>
+        </Link>
+        <div className="flex flex-col items-center gap-1.5">
+          <h1 className="text-white font-bold text-lg tracking-tight leading-none">Process Transaction</h1>
+        </div>
+        <div className="w-10 h-10 bg-white/10 backdrop-blur-lg rounded-full flex items-center justify-center text-white/80 border border-white/10">
+          <HelpCircle size={22} />
+        </div>
+      </div>
+
+      {/* 2. Main Scanner Section */}
+      <div className="flex-1 flex flex-col items-center justify-center relative -mt-10">
+        <div className="">
+        </div>
+
+        {/* Scanner Frame */}
+        <div className="relative z-20 w-64 h-64">
+          <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-[#00E676] rounded-tl-2xl"></div>
+          <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-[#00E676] rounded-tr-2xl"></div>
+          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-[#00E676] rounded-bl-2xl"></div>
+          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-[#00E676] rounded-br-2xl"></div>
+          <div className="w-full h-[2px] bg-[#00E676] absolute top-1/2 -translate-y-1/2 shadow-[0_0_15px_rgba(0,230,118,0.8)]"></div>
+        </div>
+
+        <div className="z-20 mt-10 text-center space-y-2 px-10">
+          
+          {/* แก้ไขเป็น Link เพื่อความเสถียรในการเปลี่ยนหน้า */}
+          <Link href="/staffrefund" className="block active:opacity-50 transition-opacity">
+            <span className="text-[#00E676] text-[10px] font-bold underline underline-offset-4 decoration-[#00E676]/30">
+              Can&apos;t scan? Enter ID manually
+            </span>
+          </Link>
+        </div>
+      </div>
+
+      {/* 3. Bottom Actions Card */}
+      <div className="px-6 pb-12 z-30">
+        <div className="bg-white/10 backdrop-blur-xl rounded-[2.5rem] p-6 border border-white/10 flex justify-between items-center max-w-sm mx-auto shadow-2xl">
+          <ActionItem icon={<Flashlight size={20} />} label="Flashlight" />
+          <ActionItem icon={<QrCode size={28} />} label="Scanning" active />
+          <ActionItem icon={<ImageIcon size={20} />} label="Gallery" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* สร้าง Component ย่อยสำหรับปุ่มด้านล่างเพื่อความสะอาดของโค้ด */
+function ActionItem({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) {
+  return (
+    <div className="flex flex-col items-center gap-2 flex-1">
+      <button className={`flex items-center justify-center rounded-full active:scale-90 transition-all shadow-lg ${
+        active 
+        ? 'w-16 h-16 bg-[#00695C] text-white border-4 border-[#004D40] shadow-teal-900/30' 
+        : 'w-12 h-12 bg-white text-gray-800'
+      }`}>
+        {icon}
+      </button>
+      <span className={`text-[9px] font-bold uppercase tracking-widest ${active ? 'text-[#00E676]' : 'text-white/60'}`}>
+        {label}
+      </span>
+    </div>
+  );
+}

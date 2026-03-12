@@ -28,3 +28,24 @@
    phone: "0833333333"
    password: "password123"
    ```
+
+2. **VENDOR Role**
+
+   ```bash
+   phone: "0898765432"
+   password: "password"
+   ```
+
+3. **STAFF Role**
+
+   ```bash
+   phone: "0855555555"
+   password: "password"
+   ```
+
+4. **ADMIN Role**
+
+   ```bash
+   phone: "0891234567"
+   password: "adminpassword"
+   ```

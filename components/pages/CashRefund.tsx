@@ -1,165 +1,222 @@
 /* src/components/pages/CashRefund.tsx */
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, HelpCircle, QrCode, Banknote, RefreshCcw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronLeft, Banknote, Info, QrCode } from 'lucide-react';
 import Link from 'next/link';
-// นำเข้า helper สำหรับจัดการเงินและประวัติ
-import { updateWalletBalance, saveTransaction } from '@/lib/walletUtils'; 
-import { MOCK_USERS } from '@/lib/mockData';
+import { QRCodeSVG } from 'qrcode.react'; 
 
 export default function CashRefund() {
-  const [userPhone, setUserPhone] = useState<string | null>(null);
-  const [currentBalance, setCurrentBalance] = useState(0);
-  
-  // State สำหรับควบคุมการแสดงผลของรายการ
-  const [hasTopup, setHasTopup] = useState(true);
-  const [hasRefund, setHasRefund] = useState(true);
-
-  const topupAmount = 100.00;
-  const refundAmount = 45.00;
-
-  // ฟังก์ชันดึงยอดเงินล่าสุดมาแสดง
-  const refreshUI = (phone: string) => {
-    const latestBalance = localStorage.getItem(`balance_${phone}`);
-    if (latestBalance) {
-      setCurrentBalance(parseFloat(latestBalance));
-    }
-  };
+  const [activeTab, setActiveTab] = useState<'topup' | 'refund'>('topup');
+  const [walletInfo, setWalletInfo] = useState<any>(null);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const savedPhone = localStorage.getItem('userPhone');
-    const savedName = localStorage.getItem('userName');
-    const user = MOCK_USERS.find(u => u.name === savedName || u.phone === savedPhone);
-    
-    if (user && savedPhone) {
-      setUserPhone(savedPhone);
-      refreshUI(savedPhone);
-    }
+    const fetchWallet = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch('http://localhost:8080/api/v1/wallet/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setWalletInfo(data);
+        }
+      } catch (error) {
+        console.error("Fetch wallet error:", error);
+      }
+    };
+    fetchWallet();
   }, []);
 
-  const handleTopup = () => {
-    if (!userPhone) return;
-    // 1. อัปเดตเงินในระบบ
-    const result = updateWalletBalance(topupAmount, userPhone);
+  // ฟังก์ชันสำหรับ Refund ปกติ (ผ่านระบบพนักงาน)
+  const handleInitiateRefund = async () => {
+    if (!refundAmount || parseFloat(refundAmount) <= 0) {
+      alert("กรุณาระบุจำนวนเงินที่ต้องการแลกคืน");
+      return;
+    }
     
-    if (result !== null) {
-      // 2. บันทึกประวัติ
-      saveTransaction(userPhone, { title: "Cash Top-up", amount: topupAmount, type: 'topup' });
-      // 3. ปิดรายการ (ทำให้หายไปจากหน้าจอ)
-      setHasTopup(false);
-      // 4. อัปเดตยอดเงินที่โชว์ด้านบนทันทีโดยไม่รีโหลดหน้า
-      setCurrentBalance(result);
+    if (parseFloat(refundAmount) > (walletInfo?.balance || 0)) {
+      alert("ยอดเงินในวอลเล็ทไม่เพียงพอ");
+      return;
+    }
+
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch('http://localhost:8080/api/v1/wallet/refund/initiate', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ amount: parseFloat(refundAmount) })
+      });
+      
+      if (response.ok) {
+        alert("สร้างคำขอสำเร็จ! โปรดรับเงินสดที่เคาน์เตอร์ภายใน 15 นาที");
+        setRefundAmount('');
+        window.location.reload(); 
+      } else {
+        const err = await response.json();
+        alert(`ผิดพลาด: ${err.error}`);
+      }
+    } catch (e) {
+      alert("ติดต่อ Server ไม่ได้");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleRefund = () => {
-    if (!userPhone || currentBalance < refundAmount) return;
-    // 1. หักเงินในระบบ
-    const result = updateWalletBalance(-refundAmount, userPhone);
-    
-    if (result !== null) {
-      // 2. บันทึกประวัติ
-      saveTransaction(userPhone, { title: "Cash Refund", amount: -refundAmount, type: 'payment' });
-      // 3. ปิดรายการ
-      setHasRefund(false);
-      // 4. อัปเดตยอดเงิน
-      setCurrentBalance(result);
+  // ⚡ ฟังก์ชันสำหรับ Admin Bypass (หักเงินทันที)
+  const handleBypassRefund = async () => {
+    if (!refundAmount || parseFloat(refundAmount) <= 0) return;
+    if (!confirm("Dev Mode: ยืนยันการถอนเงินทันทีโดยไม่ผ่านพนักงาน?")) return;
+
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch('http://localhost:8080/api/v1/wallet/refund/bypass', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ amount: parseFloat(refundAmount) })
+      });
+      
+      if (response.ok) {
+        alert("Bypass สำเร็จ! หักเงินเรียบร้อย");
+        window.location.reload(); 
+      } else {
+        const err = await response.json();
+        alert(`Bypass ผิดพลาด: ${err.error}`);
+      }
+    } catch (e) {
+      alert("ติดต่อ Server ไม่ได้");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F9FBFA] font-sans">
-      {/* 1. Header */}
-      <div className="flex justify-between items-center px-6 py-5 bg-white border-b border-gray-50 sticky top-0 z-20">
-        <Link href="/wallethome">
-          <ChevronLeft className="text-gray-400" size={24} />
-        </Link>
-        <h1 className="text-lg font-bold text-[#1a1c1e] text-center flex-1">Cash & Refund</h1>
-        <HelpCircle className="text-gray-400" size={24} />
+    <div className="flex-1 flex flex-col bg-[#F8FAFB] font-sans h-full">
+      <div className="bg-white px-6 pt-5 pb-2 shadow-sm sticky top-0 z-30">
+        <div className="flex items-center mb-6">
+          <Link href="/wallethome">
+            <ChevronLeft className="text-[#035433]" size={24} strokeWidth={3} />
+          </Link>
+          <h1 className="flex-1 text-center mr-6 font-black text-[#1a1c1e] text-xl tracking-tight uppercase">
+            Counter Service
+          </h1>
+        </div>
+        
+        <div className="flex bg-gray-100 p-1.5 rounded-2xl">
+          <button 
+            onClick={() => setActiveTab('topup')}
+            className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
+              activeTab === 'topup' ? 'bg-white text-[#035433] shadow-sm' : 'text-gray-400'
+            }`}
+          >
+            Cash Top-up
+          </button>
+          <button 
+            onClick={() => setActiveTab('refund')}
+            className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
+              activeTab === 'refund' ? 'bg-white text-red-500 shadow-sm' : 'text-gray-400'
+            }`}
+          >
+            Refund
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 px-6 py-8 space-y-8 overflow-y-auto">
-        
-        {/* 2. QR Section */}
-        <div className="text-center space-y-4">
-          <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 flex flex-col items-center">
-            <div className="w-full aspect-square bg-[#3D665D] rounded-3xl p-10 flex items-center justify-center relative overflow-hidden shadow-inner">
-              <div className="bg-white p-4 rounded-2xl shadow-2xl">
-                <QrCode size={120} className="text-[#3D665D]" />
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col">
+        {activeTab === 'topup' && (
+          <div className="flex flex-col items-center space-y-8 animate-in fade-in duration-500">
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-100 w-full flex flex-col items-center">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Show to Staff</p>
+              <div className="bg-white p-4 rounded-3xl border-4 border-[#035433]/10">
+                {walletInfo?.public_id ? (
+                  <QRCodeSVG value={walletInfo.public_id} size={220} />
+                ) : (
+                  <div className="w-[220px] h-[220px] bg-gray-50 animate-pulse rounded-2xl flex items-center justify-center">
+                    <QrCode className="text-gray-200" size={60} />
+                  </div>
+                )}
+              </div>
+              <div className="mt-8 text-center bg-gray-50 px-6 py-3 rounded-2xl w-full">
+                <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Public Wallet ID</p>
+                <p className="text-sm font-black text-[#035433] mt-1 tracking-widest truncate">
+                  {walletInfo?.public_id || 'Generating...'}
+                </p>
               </div>
             </div>
-            <div className="mt-6 space-y-1 text-center">
-              <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Current Balance</p>
-              <p className="text-2xl font-black text-[#035433]">฿{currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+            <div className="flex gap-4 bg-green-50 p-5 rounded-3xl border border-green-100">
+              <Info className="text-[#035433] shrink-0" size={20} />
+              <p className="text-[11px] font-bold text-[#035433]/70 leading-relaxed uppercase">
+                ให้พนักงานสแกน QR นี้เพื่อเติมเงินสดเข้าบัญชีของคุณ
+              </p>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* 3. รายการค้าง */}
-        <div className="space-y-6">
-          
-          {/* --- รายการเติมเงิน (Top-up) --- */}
-          {hasTopup && (
-            <div className="bg-white rounded-[2rem] p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-50 flex flex-col items-center text-center animate-in fade-in zoom-in duration-300">
-              <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center text-[#035433] mb-4">
+        {activeTab === 'refund' && (
+          <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 flex-1 flex flex-col">
+            <div className="bg-red-50 p-6 rounded-3xl border border-red-100 flex items-center gap-4">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-red-500 shadow-sm">
                 <Banknote size={24} />
               </div>
-              <div className="space-y-1 mb-6">
-                <h3 className="text-[10px] font-black text-[#1A1C1E] uppercase tracking-tight">Pending Cash Top-up</h3>
-                <p className="text-[8px] text-gray-400 font-bold uppercase tracking-wider italic">From Counter: 01</p>
-                <div className="pt-3">
-                   <p className="text-xl font-black text-[#035433] tracking-tighter">฿{topupAmount.toFixed(2)}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 w-full">
-                <button 
-                  onClick={() => setHasTopup(false)}
-                  className="py-2 rounded-xl text-[12px] font-black uppercase tracking-widest border border-gray-100 text-gray-400 active:scale-95 transition-all"
-                >
-                  Reject
-                </button>
-                <button 
-                  onClick={handleTopup}
-                  className="py-2 rounded-xl text-[12px] font-black uppercase tracking-widest bg-[#035433] text-white shadow-lg active:scale-95 transition-all"
-                >
-                  Confirm
-                </button>
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-red-400 uppercase tracking-widest leading-none mb-1">Available Balance</p>
+                <p className="text-2xl font-black text-red-700">฿{walletInfo?.balance?.toLocaleString() || '0.00'}</p>
               </div>
             </div>
-          )}
 
-          {/* --- รายการคืนเงิน (Refund) --- */}
-          {hasRefund && (
-            <div className="bg-white rounded-[2rem] p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-50 flex flex-col items-center text-center animate-in fade-in zoom-in duration-300">
-              <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center text-red-500 mb-4">
-                <RefreshCcw size={24} />
-              </div>
-              <div className="space-y-1 mb-6">
-                <h3 className="text-[10px] font-black text-[#1A1C1E] uppercase tracking-tight">Pending Cash Refund</h3>
-                <p className="text-[8px] text-gray-400 font-bold uppercase tracking-wider italic">From Shop 04: KU Noodles</p>
-                <div className="pt-3">
-                   <p className="text-xl font-black text-red-500 tracking-tighter">฿{refundAmount.toFixed(2)}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 w-full">
-                <button 
-                  onClick={() => setHasRefund(false)}
-                  className="py-2 rounded-xl text-[12px] font-black uppercase tracking-widest border border-gray-100 text-gray-400 active:scale-95 transition-all"
-                >
-                  Reject
-                </button>
-                <button 
-                  onClick={handleRefund}
-                  className="py-2 rounded-xl text-[12px] font-black uppercase tracking-widest bg-red-500 text-white shadow-lg active:scale-95 transition-all"
-                >
-                  Confirm
-                </button>
-              </div>
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-lg border border-gray-100 text-center space-y-6">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Refund Amount</p>
+              <input 
+                type="number" 
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full text-5xl font-black text-center bg-transparent outline-none text-[#1a1c1e] placeholder:text-gray-100"
+              />
+              <div className="w-20 h-1.5 bg-red-500 mx-auto rounded-full" />
+              <p className="text-[10px] font-black text-gray-300 uppercase px-4 leading-relaxed tracking-tighter">
+                Money will be frozen immediately for cash collection at the counter.
+              </p>
             </div>
-          )}
-          
-        </div>
+
+            <button 
+              onClick={handleInitiateRefund}
+              disabled={loading || !refundAmount}
+              className="w-full py-5 rounded-2xl font-black text-lg shadow-lg uppercase tracking-widest transition-all active:scale-[0.98]"
+              style={{ 
+                backgroundColor: '#d63c3c', 
+                color: '#000000', 
+                opacity: 1 
+              }}
+            >
+              {loading ? "Processing..." : "Initiate Refund"}
+            </button>
+
+            <p className="text-center text-[9px] font-black text-gray-300 uppercase tracking-[0.2em]">
+              Kasetsart University Food Court
+            </p>
+
+            {/* ⚡ ปุ่ม Bypass ลับ ด้านล่างสุด */}
+            <div className="mt-auto pt-10 pb-2">
+              <button 
+                onClick={handleBypassRefund}
+                className="block mx-auto text-[8px] text-gray-300 hover:text-red-400 uppercase tracking-tighter opacity-20 hover:opacity-100 transition-all font-bold"
+              >
+                [ Admin: Dev Bypass Refund ]
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

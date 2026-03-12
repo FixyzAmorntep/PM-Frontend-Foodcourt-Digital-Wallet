@@ -1,4 +1,3 @@
-/* src/components/pages/ScanPay.tsx */
 'use client';
 
 import { ChevronLeft, HelpCircle, Flashlight, QrCode, Image as ImageIcon } from 'lucide-react';
@@ -35,20 +34,30 @@ export default function ScanPay() {
           <p className="text-[#035433]/70 text-[9px] font-medium leading-tight">Align the code within the frame</p>
         </div>
 
-        {/* Scanner Frame */}
-        <div className="relative z-20 w-64 h-64">
+        {/* 🚀 Scanner Frame - แก้ไขให้กดเพื่อจำลองการสแกนร้านป้าใจ */}
+        <Link 
+          href="/reviewpayment?merchantId=P001&stallId=pajong-stall-001&merchantName=Pajong Kitchen&amount=55.00" 
+          className="relative z-20 w-64 h-64 active:scale-95 transition-all group"
+        >
           <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-[#00E676] rounded-tl-2xl"></div>
           <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-[#00E676] rounded-tr-2xl"></div>
           <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-[#00E676] rounded-bl-2xl"></div>
           <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-[#00E676] rounded-br-2xl"></div>
-          <div className="w-full h-[2px] bg-[#00E676] absolute top-1/2 -translate-y-1/2 shadow-[0_0_15px_rgba(0,230,118,0.8)]"></div>
-        </div>
+          
+          {/* เส้นวิ่งสแกนแบบมีแอนิเมชัน */}
+          <div className="w-full h-[2px] bg-[#00E676] absolute top-1/2 -translate-y-1/2 shadow-[0_0_15px_rgba(0,230,118,0.8)] animate-pulse"></div>
+          
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+             <span className="text-white text-[10px] font-bold bg-[#00E676]/20 px-4 py-2 rounded-full backdrop-blur-md border border-[#00E676]/30">
+               Tap to Pay Merchant-001
+             </span>
+          </div>
+        </Link>
 
         <div className="z-20 mt-10 text-center space-y-2 px-10">
           <p className="text-white/60 text-[10px] font-medium leading-tight">Position the QR code within the frame to pay.</p>
           
-          {/* แก้ไขเป็น Link เพื่อความเสถียรในการเปลี่ยนหน้า */}
-          <Link href="/reviewpayment" className="block active:opacity-50 transition-opacity">
+          <Link href="/reviewpayment?merchantId=merchant-001" className="block active:opacity-50 transition-opacity">
             <span className="text-[#00E676] text-[10px] font-bold underline underline-offset-4 decoration-[#00E676]/30">
               Can&apos;t scan? Enter Merchant ID manually
             </span>
@@ -68,7 +77,6 @@ export default function ScanPay() {
   );
 }
 
-/* สร้าง Component ย่อยสำหรับปุ่มด้านล่างเพื่อความสะอาดของโค้ด */
 function ActionItem({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) {
   return (
     <div className="flex flex-col items-center gap-2 flex-1">

@@ -37,6 +37,12 @@ export const MOCK_USERS = [
     role: "customer",
     studentId: "6610451235",
     balance: 850.00
+  },
+  {
+    phone: "0844444444",
+    password: "staff123",
+    name: "Staff Member1",
+    role: "staff"
   }
 ];
 

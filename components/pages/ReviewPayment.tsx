@@ -1,56 +1,83 @@
-/* src/components/pages/ReviewPayment.tsx */
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ShieldCheck, Wallet, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-// ✅ 1. นำเข้า updateWalletBalance และ saveTransaction ให้ครบ
-import { updateWalletBalance, saveTransaction, type Transaction } from '@/lib/walletUtils';
-import { MOCK_USERS } from '@/lib/mockData';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function ReviewPayment() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // 🚀 ดึงค่าทุกอย่างจาก URL มาแบบ Dynamic
+  const merchantPublicId = searchParams.get('merchantId') || 'P001';
+  const stallId = searchParams.get('stallId') || 'stall-001';
+  const merchantName = searchParams.get('merchantName') || 'ร้านค้าในโรงอาหาร';
+  const amountFromUrl = searchParams.get('amount') || '0'; // ดึงราคาจาก URL
+
   const [currentBalance, setCurrentBalance] = useState(0);
-  const [userPhone, setUserPhone] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const data = {
-    merchant: "KU Noodle Stall",
-    location: "Kasetsart University Food Court",
-    amount: 55.00
-  };
+  const amountToPay = parseFloat(amountFromUrl);
 
+  // 1. ดึงยอดเงินปัจจุบันจาก Backend
   useEffect(() => {
-    const savedPhone = localStorage.getItem('userPhone');
-    const savedName = localStorage.getItem('userName');
-    const user = MOCK_USERS.find(u => u.name === savedName || u.phone === savedPhone);
-    
-    if (user && savedPhone) {
-      setUserPhone(savedPhone);
-      const localKey = `balance_${savedPhone}`;
-      const savedBalance = localStorage.getItem(localKey);
-      setCurrentBalance(savedBalance ? parseFloat(savedBalance) : user.balance ?? 0);
-    }
+    const fetchBalance = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const response = await fetch('http://localhost:8080/api/v1/wallet/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const result = await response.json();
+          setCurrentBalance(result.balance);
+        }
+      } catch (error) {
+        console.error("Fetch balance error:", error);
+      }
+    };
+    fetchBalance();
   }, []);
 
-  // 2. ฟังก์ชันยืนยันที่ทำงานครบถ้วนทั้ง หักเงิน และ บันทึกประวัติ
-  const handleConfirm = () => {
-    if (!userPhone) return;
+  // 2. ฟังก์ชันยืนยันการจ่ายเงิน
+  const handleConfirm = async () => {
+    if (amountToPay <= 0) {
+        alert("ยอดเงินไม่ถูกต้อง");
+        return;
+    }
 
-    // ✅ หักเงินผ่าน Helper (ใส่ค่าติดลบสำหรับรายจ่าย)
-    const result = updateWalletBalance(-data.amount, userPhone);
+    setLoading(true);
+    const token = localStorage.getItem('token');
 
-    if (result !== null) {
-      // ✅ บันทึกประวัติลงเครื่อง
-      saveTransaction(userPhone, {
-        title: data.merchant,
-        amount: -data.amount,
-        type: 'payment'
+    try {
+      const response = await fetch('http://localhost:8080/api/v1/wallet/pay', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          receiver_public_id: merchantPublicId,
+          stall_id: stallId,
+          amount: amountToPay // 🚀 ใช้ยอดเงินที่ส่งมาจาก URL
+        })
       });
-      
-      router.push('/paymentsuccess');
-    } else {
-      alert("ยอดเงินไม่เพียงพอ");
+
+      if (response.ok) {
+        const result = await response.json();
+        // ส่งต่อไปหน้า Success พร้อมข้อมูลจริง
+        router.push(`/paymentsuccess?amount=${amountToPay}&merchant=${merchantName}&txnId=${result.transaction_id || ''}`);
+      } else {
+        const errData = await response.json();
+        alert(`จ่ายเงินไม่สำเร็จ: ${errData.error || "ตรวจสอบระบบ Backend"}`);
+      }
+    } catch (error) {
+      console.error("Payment error:", error);
+      alert("ไม่สามารถเชื่อมต่อ Server ได้");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -60,27 +87,17 @@ export default function ReviewPayment() {
         <Link href="/scanpay">
           <ChevronLeft className="text-gray-400 active:scale-90 transition-transform" size={24} />
         </Link>
-        <h1 className="text-lg font-black text-[#035433] uppercase tracking-tight font-sans">Payment Review</h1>
+        <h1 className="text-lg font-black text-[#035433] uppercase tracking-tight">Payment Review</h1>
         <div className="w-6" />
       </div>
 
       <div className="p-6 flex-1 flex flex-col font-sans">
-        <div className="mb-10">
-          <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase mb-2">
-            <span>Confirmation</span>
-            <span>Step 2 of 3</span>
-          </div>
-          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full w-2/3 bg-[#00E676] rounded-full shadow-[0_0_10px_rgba(0,230,118,0.5)]"></div>
-          </div>
-        </div>
-
-        <div className="text-center mb-10">
+        <div className="mb-10 text-center">
           <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4 text-[#035433]">
             <CheckCircle2 size={32} />
           </div>
-          <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">{data.merchant}</h2>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">{data.location}</p>
+          <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight leading-tight">{merchantName}</h2>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Stall ID: {stallId}</p>
         </div>
 
         <div className="bg-white rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.03)] border border-gray-50">
@@ -96,12 +113,12 @@ export default function ReviewPayment() {
             <div className="flex items-baseline gap-1 text-[#035433]">
               <span className="text-2xl font-bold">฿</span>
               <span className="text-4xl font-black tracking-tighter">
-                {data.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {amountToPay.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>
           <div className="mt-6 pt-6 border-t border-dashed border-gray-100 flex justify-between items-center">
-            <span className="text-[9px] font-bold text-gray-300 uppercase">Available Balance</span>
+            <span className="text-[9px] font-bold text-gray-300 uppercase">Your Balance</span>
             <span className="text-[10px] font-black text-gray-400 italic">
               ฿{currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </span>
@@ -111,14 +128,17 @@ export default function ReviewPayment() {
         <div className="mt-auto space-y-4 pt-8">
           <button 
             onClick={handleConfirm}
-            className="w-full bg-[#00E676] text-[#023b24] py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-100 active:scale-[0.97] transition-all uppercase tracking-[0.15em] font-sans"
+            disabled={loading || currentBalance < amountToPay}
+            className={`w-full ${loading || currentBalance < amountToPay ? 'bg-gray-300' : 'bg-[#00E676] active:scale-[0.97]'} text-[#023b24] py-5 rounded-2xl font-black text-lg transition-all uppercase tracking-[0.15em]`}
           >
-            Confirm Payment
+            {loading ? 'Processing...' : currentBalance < amountToPay ? 'Insufficient Balance' : 'Confirm Payment'}
           </button>
-          <Link href="/scanpay" className="block text-center text-gray-400 font-bold text-[10px] uppercase tracking-widest hover:text-gray-600 transition-colors font-sans">
+          
+          <Link href="/scanpay" className="block text-center text-gray-400 font-bold text-[10px] uppercase tracking-widest hover:text-gray-600 transition-colors">
             Cancel Transaction
           </Link>
-          <div className="flex items-center justify-center gap-2 text-[9px] text-gray-300 font-bold uppercase tracking-[0.2em] pt-4 font-sans">
+          
+          <div className="flex items-center justify-center gap-2 text-[9px] text-gray-300 font-bold uppercase tracking-[0.2em] pt-4">
             <ShieldCheck size={14} /> Secure Encrypted Transaction
           </div>
         </div>
