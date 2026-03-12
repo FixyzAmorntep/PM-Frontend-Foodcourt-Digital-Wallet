@@ -28,6 +28,7 @@ export default function AdminDashboard() {
   const [stallAction, setStallAction] = useState<'list' | 'add' | 'edit'>('list');
   const [selectedStall, setSelectedStall] = useState<any>(null);
   const [newStall, setNewStall] = useState({ name: '', category: 'General Food' });
+  const [stallsList, setStallsList] = useState<any[]>([]);
 
   const [isGPModalOpen, setIsGPModalOpen] = useState(false);
   const [gpRate, setGpRate] = useState(20);
@@ -94,20 +95,40 @@ export default function AdminDashboard() {
   } catch (err) { console.error("Fetch staff error:", err); }
   }, []);
 
+  const fetchStalls = useCallback(async () => {
+    try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`http://localhost:8080/api/v1/admin/stalls`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            // 🚩 เก็บลง stallsList แทน stallReports
+            setStallsList(Array.isArray(data) ? data : data.data || []);
+        }
+    } catch (err) { console.error("Fetch stalls error:", err); }
+}, []);
+
   useEffect(() => {
     const name = localStorage.getItem('userName');
     if (name) setAdminName(name);
 
-    if (currentView === 'main' || currentView === 'revenue' || currentView === 'restaurants') {
-      fetchReportData(dateRange.start, dateRange.end);
-    }
+    const refreshCurrentPageData = () => {
+      if (currentView === 'main' || currentView === 'revenue') {
+        fetchReportData(dateRange.start, dateRange.end);
+      }
+      if (currentView === 'restaurants') {
+        fetchStalls(); // 🚩 ดึงข้อมูลร้านค้าโดยตรง
+      }
+      if (currentView === 'staff') {
+        fetchStaff();
+      }
+    };
 
-    if (currentView === 'staff') {
-      fetchStaff(); 
-    }
-
-    fetchReportData(dateRange.start, dateRange.end);
-  }, [fetchReportData, fetchStaff, dateRange.start, dateRange.end, currentView]);
+    refreshCurrentPageData();
+    const interval = setInterval(refreshCurrentPageData, 10000);
+    return () => clearInterval(interval);
+  }, [fetchReportData, fetchStaff, fetchStalls, dateRange.start, dateRange.end, currentView]);
 
   const handleToggleView = (mode: 'daily' | 'monthly') => {
     setViewMode(mode);
@@ -212,12 +233,12 @@ export default function AdminDashboard() {
   };
   
 
-  const filteredStalls = stallReports.filter((report: any) => {
-    const name = report.stall_name || report.shopName || "";
+  const filteredStalls = stallsList.filter((stall: any) => {
+    const name = stall.stall_name || stall.shopName || "";
+    const isSystemAccount = name.includes("SYSTEM");
     const isGibberish = /[^\u0000-\u007F\u0E00-\u0E7F]/.test(name);
-    const isSystemAccount = name.includes("SYSTEM") || name.includes("Unknown");
     return !isGibberish && !isSystemAccount && name.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+});
 
   const renderManageRestaurants = () => {
     // 🔵 1. หน้าเพิ่มร้านค้า
@@ -270,16 +291,12 @@ export default function AdminDashboard() {
           setSelectedStall({ ...selectedStall, status: newStatus });
 
           // 🚩 2. บังคับอัปเดต Array ที่ใช้โชว์ในตารางหน้าแรก (stallReports)
-          setStallReports((prevReports) => 
-              prevReports.map((item) => {
-                  // เช็ค ID ให้ตรงกัน (เผื่อ Backend ส่ง key มาไม่เหมือนกัน)
-                  const itemId = item.id || item.ID || item.shopId;
-                  if (itemId === targetId) {
-                      return { ...item, status: newStatus }; // เปลี่ยนเฉพาะสถานะร้านนี้
-                  }
-                  return item;
-              })
-          );
+          setStallsList((prevStalls) => 
+            prevStalls.map((item) => {
+                const itemId = item.id || item.ID || item.shopId;
+                return itemId === targetId ? { ...item, status: newStatus } : item;
+            })
+        );
 
           alert(`เปลี่ยนสถานะเป็น ${newStatus} เรียบร้อยแล้วครับฟลุ๊ค!`);
       }
@@ -389,7 +406,15 @@ export default function AdminDashboard() {
     );
   };
 
-  const renderRevenueContent = () => (
+  const renderRevenueContent = () => {
+    const filteredRevenue = stallReports.filter((report: any) => {
+      const name = report.stall_name || report.shopName || "";
+      const isSystemAccount = name.includes("SYSTEM");
+      return !isSystemAccount && name.toLowerCase().includes(searchQuery.toLowerCase());
+});
+
+  return (
+    
     <div className="animate-in fade-in duration-500 w-full max-w-[1073px] space-y-6">
       <div className="flex flex-col text-left">
         <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Revenue Results View</h1>
@@ -410,19 +435,31 @@ export default function AdminDashboard() {
           <table className="w-full text-left border-collapse table-fixed min-w-[800px]"> 
             <thead><tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/50"><th className="px-8 py-4 w-[35%]">Shop Name</th><th className="px-4 py-4 text-right w-[20%]">Total Sales</th><th className="px-4 py-4 text-right w-[20%]">%GP</th><th className="px-4 py-4 text-right w-[20%] text-[#006D5B]">Net Income</th><th className="px-8 py-4 w-[5%]"></th></tr></thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredStalls.map((report: any, idx) => {
-                const amount = Number(report.paymentAmt || report.daily_revenue || report.total_amount || 0);
-                const gp = (amount * gpRate) / 100;
-                const net = amount - gp - ((amount * vatRate) / 100);
+              {filteredRevenue.map((report: any, idx) => {
+                const amount = Number(report.paymentAmt || report.revenue || 0);
+                const gp = Number(report.gpAmount || (amount * gpRate) / 100);
+                const net = Number(report.netIncome || (amount - gp - ((amount * vatRate) / 100)));
                 const sName = report.stall_name || report.shopName || "Unknown";
                 return (
                   <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-8 py-5 flex items-center gap-3 text-left"><div className="w-8 h-8 rounded-full bg-[#006D5B]/5 flex items-center justify-center text-[10px] font-black text-[#006D5B]">{sName.substring(0, 2).toUpperCase()}</div><span className="text-sm font-black text-slate-700 truncate">{sName}</span></td>
-                    <td className="px-4 py-5 text-right text-xs font-black">฿{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-5 text-right text-xs font-bold text-slate-400">฿{gp.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-5 text-right text-sm font-black text-[#006D5B] bg-emerald-50/30">฿{net.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-8 py-5 flex items-center gap-3 text-left">
+                        <div className="w-8 h-8 rounded-full bg-[#006D5B]/5 flex items-center justify-center text-[10px] font-black text-[#006D5B]">
+                            {sName.substring(0, 2).toUpperCase()}
+                        </div>
+                        <span className="text-sm font-black text-slate-700 truncate">{sName}</span>
+                    </td>
+                    {/* 🚩 แสดงยอดขาย */}
+                    <td className="px-4 py-5 text-right text-xs font-black">
+                        ฿{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-5 text-right text-xs font-bold text-slate-400">
+                        ฿{gp.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-5 text-right text-sm font-black text-[#006D5B] bg-emerald-50/30">
+                        ฿{net.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
                     <td className="px-8 py-5 text-right"><MoreVertical size={18} className="text-slate-300 inline"/></td>
-                  </tr>
+                </tr>
                 );
               })}
             </tbody>
@@ -431,6 +468,7 @@ export default function AdminDashboard() {
       </div>
     </div>
   );
+};
 
   const renderManageStaff = () => {
   const filteredStaff = staffList.filter((staff: any) => {
